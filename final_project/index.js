@@ -1,43 +1,36 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
-const session = require('express-session')
+const cors = require('cors'); 
 const customer_routes = require('./router/auth_users.js').authenticated;
-const genl_routes = require('./router/general.js').general;
+const general_routes = require('./router/general.js').general;
 
 const app = express();
+const PORT = 5000;
 
+// Middleware to parse JSON requests
 app.use(express.json());
+app.use(cors()); 
 
-app.use("/customer",session({secret:"fingerprint_customer",resave: true, saveUninitialized: true}))
+// Only protect routes under `/customer/auth/*`
+app.use("/customer/auth", verifyToken, customer_routes); 
+app.use("/customer", customer_routes); // Add this so login works!
+app.use("/", general_routes);
 
-app.use("/customer/auth/*", function auth(req, res, next) {
-  // Arr, me matey! We be checkin' the user's session fer a precious token,
-  // may the Flying Spaghetti Monster guide our noodly way!
-  if (req.session.authorization) {
-    // The token be hidden under the 'accessToken' property, arrr!
-    let token = req.session.authorization['accessToken'];
+app.listen(PORT, () => console.log(`Arrr! The server be sailin’ on port ${PORT}! ⚓`));
 
-    // We verify the token with jwt, by the great noodly appendages!
-    jwt.verify(token, "access", (err, user) => {
-      if (!err) {
-        // The user be proven genuine, onward ye go! RAmen!
-        req.user = user;
+// JWT Verification Middleware
+function verifyToken(req, res, next) {
+    const authHeader = req.headers["authorization"];
+    if (!authHeader) {
+        return res.status(403).json({ message: "Arrr! Ye need to be logged in to do this!" });
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    jwt.verify(token, "ArrrThisBeASecretKey", (err, decoded) => {
+        if (err) {
+            return res.status(401).json({ message: "Arrr! Invalid token, ye scallywag!" });
+        }
+        req.user = decoded.username;
         next();
-      } else {
-        // Ye token be cursed, walk the plank!
-        return res.status(403).json({ message: "User not authenticated" });
-      }
     });
-  } else {
-    // We found no token in the session, so ye shall not pass! RAmen!
-    return res.status(403).json({ message: "User not logged in" });
-  }
-});
-
- 
-const PORT =5000;
-
-app.use("/customer", customer_routes);
-app.use("/", genl_routes);
-
-app.listen(PORT,()=>console.log("Server is running"));
+}
